@@ -49,17 +49,13 @@ func (runner TestRunner) Execute() {
 		}
 	}
 
-	//writer := tabwriter.NewWriter(os.Stdout, 0, 4, 0, '\t', 0)
 	fmt.Printf("Results from %s:\n", runner.suiteName)
 	for _, result := range passed {
-		//fmt.Fprintln(writer, result.TabbedResult())
 		result.PrintResult()
 	}
 	for _, result := range failed {
-		//fmt.Fprintln(writer, result.TabbedResult())
 		result.PrintResult()
 	}
-	//writer.Flush()
 }
 
 func (runner TestRunner) executeTest(test Test) (TestResult, error) {
@@ -89,9 +85,6 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 	}
 	var response map[string]interface{}
 	json.Unmarshal(body, &response)
-
-	//responseType := reflect.TypeOf(response)
-
 	runner.removeFieldsFromMap(response)
 
 	// Compare statusCode and deep compare response payload
@@ -112,21 +105,6 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 	}
 	return Passed(test.Name), nil
 }
-
-// func (runner TestRunner) removeIgnoredFields(o interface{}) {
-// 	switch o.(type) {
-// 	case map[string]interface{}:
-// 		m := (map[string]interface{}) o
-// 		runner.removeFieldsFromMap(m)
-// 	case []map[string]interface{}:
-// 		arr := ([]map[string]interface{}) o
-// 		for _, obj := range arr {
-
-// 		}
-// 	default:
-// 		return
-// 	}
-// }
 
 func (runner TestRunner) removeFieldsFromMap(m map[string]interface{}) {
 	for _, field := range runner.tests.IgnoredFields {
