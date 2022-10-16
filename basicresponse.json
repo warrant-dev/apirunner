@@ -1,0 +1,18 @@
+{
+    "tests": [
+        {
+            "name": "basicResponse",
+            "request": {
+                "method": "GET",
+                "url": "/user"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": {
+                    "id": 1,
+                    "name": "name"
+                }
+            }
+        }
+    ]
+}

@@ -18,6 +18,6 @@ type Request struct {
 }
 
 type ExpectedResponse struct {
-	StatusCode int                    `json:"statusCode"`
-	Body       map[string]interface{} `json:"body"`
+	StatusCode int         `json:"statusCode"`
+	Body       interface{} `json:"body"`
 }
