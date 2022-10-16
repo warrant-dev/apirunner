@@ -12,10 +12,15 @@ import (
 	"github.com/go-test/deep"
 )
 
+type HttpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type TestRunner struct {
-	tests     Tests
-	config    Config
-	suiteName string
+	tests      Tests
+	config     Config
+	suiteName  string
+	httpClient HttpClient
 }
 
 func NewRunner(config Config, testFileName string) (TestRunner, error) {
@@ -34,10 +39,11 @@ func NewRunner(config Config, testFileName string) (TestRunner, error) {
 		tests,
 		config,
 		testFileName,
+		http.DefaultClient,
 	}, nil
 }
 
-func (runner TestRunner) Execute() {
+func (runner TestRunner) Execute() ([]TestResult, []TestResult) {
 	passed := make([]TestResult, 0)
 	failed := make([]TestResult, 0)
 	for _, test := range runner.tests.Tests {
@@ -56,6 +62,7 @@ func (runner TestRunner) Execute() {
 	for _, result := range failed {
 		result.PrintResult()
 	}
+	return passed, failed
 }
 
 func (runner TestRunner) executeTest(test Test) (TestResult, error) {
@@ -75,29 +82,52 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 		return Failed(test.Name, nil), err
 	}
 	req.Header.Add("Authorization", runner.config.ApiKey)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := runner.httpClient.Do(req)
 	if err != nil {
 		return Failed(test.Name, nil), err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return Failed(test.Name, nil), err
-	}
-	var response map[string]interface{}
-	json.Unmarshal(body, &response)
-	runner.removeFieldsFromMap(response)
 
-	// Compare statusCode and deep compare response payload
+	// Compare statusCode
 	failures := make([]string, 0)
 	statusCode := resp.StatusCode
 	if statusCode != test.ExpectedResponse.StatusCode {
 		failures = append(failures, fmt.Sprintf("Expected http %d but got http %d", test.ExpectedResponse.StatusCode, statusCode))
 	}
+
+	// Deep compare response payload
 	expectedResponse := test.ExpectedResponse.Body
-	runner.removeFieldsFromMap(expectedResponse)
-	differences := deep.Equal(response, expectedResponse)
-	if len(differences) > 0 {
-		failures = append(failures, differences...)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return Failed(test.Name, nil), err
+	}
+	var r interface{}
+	json.Unmarshal(body, &r)
+	switch r.(type) {
+	case map[string]interface{}:
+		response := r.(map[string]interface{})
+		runner.removeFieldsFromMap(response)
+		expected := expectedResponse.(map[string]interface{})
+		runner.removeFieldsFromMap(expected)
+		differences := deep.Equal(response, expectedResponse)
+		if len(differences) > 0 {
+			failures = append(failures, differences...)
+		}
+	case []interface{}:
+		response := r.([]interface{})
+		expected := expectedResponse.([]interface{})
+		if len(response) != len(expected) {
+			failures = append(failures, "The number of array elements in response and expectedResponse don't match")
+		} else {
+			for i, _ := range response {
+				differences := deep.Equal(response[i], expected[i])
+				if len(differences) > 0 {
+					failures = append(failures, differences...)
+				}
+			}
+		}
+	default:
+		failures = append(failures, "Response is of an invalid type")
 	}
 
 	if len(failures) > 0 {
