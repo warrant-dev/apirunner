@@ -109,7 +109,7 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 		runner.removeFieldsFromMap(response)
 		expected := expectedResponse.(map[string]interface{})
 		runner.removeFieldsFromMap(expected)
-		differences := deep.Equal(response, expectedResponse)
+		differences := deep.Equal(response, expected)
 		if len(differences) > 0 {
 			failures = append(failures, differences...)
 		}
@@ -119,15 +119,22 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 		if len(response) != len(expected) {
 			failures = append(failures, "The number of array elements in response and expectedResponse don't match")
 		} else {
-			for i, _ := range response {
-				differences := deep.Equal(response[i], expected[i])
+			for i := range response {
+				respObj := response[i].(map[string]interface{})
+				runner.removeFieldsFromMap(respObj)
+				expObj := expected[i].(map[string]interface{})
+				runner.removeFieldsFromMap(expObj)
+				differences := deep.Equal(respObj, expObj)
 				if len(differences) > 0 {
 					failures = append(failures, differences...)
 				}
 			}
 		}
 	default:
-		failures = append(failures, "Response is of an invalid type")
+		differences := deep.Equal(r, expectedResponse)
+		if len(differences) > 0 {
+			failures = append(failures, differences...)
+		}
 	}
 
 	if len(failures) > 0 {
