@@ -77,7 +77,14 @@ func (runner TestRunner) executeTest(test Test) (TestResult, error) {
 		}
 		requestBody = bytes.NewBuffer(reqBodyBytes)
 	}
-	req, err := http.NewRequest(test.Request.Method, runner.config.ServerEndpoint+test.Request.Url, requestBody)
+	baseUrl := runner.config.BaseUrl
+	if runner.tests.BaseUrl != "" {
+		baseUrl = runner.tests.BaseUrl
+	}
+	if test.Request.BaseUrl != "" {
+		baseUrl = test.Request.BaseUrl
+	}
+	req, err := http.NewRequest(test.Request.Method, baseUrl+test.Request.Url, requestBody)
 	if err != nil {
 		return Failed(test.Name, nil), err
 	}
