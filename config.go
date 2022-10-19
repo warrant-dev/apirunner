@@ -1,13 +1,13 @@
 package apirunner
 
 type Config struct {
-	ServerEndpoint string
-	ApiKey         string
+	BaseUrl string
+	ApiKey  string
 }
 
-func NewConfig(serverEndpoint string, key string) Config {
+func NewConfig(baseUrl string, key string) Config {
 	return Config{
-		ServerEndpoint: serverEndpoint,
-		ApiKey:         "ApiKey " + key,
+		BaseUrl: baseUrl,
+		ApiKey:  "ApiKey " + key,
 	}
 }
