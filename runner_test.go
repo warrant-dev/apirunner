@@ -27,12 +27,13 @@ func TestBasicResponse(t *testing.T) {
 	mockClient.StatusCode = 200
 	mockClient.Body = "{ \"id\": 1, \"name\": \"name\" }"
 
-	passed, failed := testRunner.Execute()
-	if len(passed) == 0 {
+	results := testRunner.Execute()
+
+	if len(results.Passed) == 0 {
 		t.Errorf("All tests should have passed.\n")
 	}
-	if len(failed) > 0 {
-		for _, test := range failed {
+	if len(results.Failed) > 0 {
+		for _, test := range results.Failed {
 			t.Errorf("Failed test result: [%s]\n", test.TabbedResult())
 		}
 	}
@@ -46,12 +47,12 @@ func TestListResponse(t *testing.T) {
 	mockClient.StatusCode = 200
 	mockClient.Body = "[{\"id\": 1, \"name\": \"name1\"},{\"id\": 2,\"name\": \"name2\"}]"
 
-	passed, failed := testRunner.Execute()
-	if len(passed) == 0 {
+	results := testRunner.Execute()
+	if len(results.Passed) == 0 {
 		t.Errorf("All tests should have passed.\n")
 	}
-	if len(failed) > 0 {
-		for _, test := range failed {
+	if len(results.Failed) > 0 {
+		for _, test := range results.Failed {
 			t.Errorf("Failed test result: [%s]\n", test.TabbedResult())
 		}
 	}
