@@ -20,8 +20,10 @@ func (c *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestBasicResponse(t *testing.T) {
-	config := NewConfig("", "")
-	testRunner, _ := NewRunner(config, "basicresponse.json")
+	testRunner, _ := NewRunner(Config{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+	}, "basicresponse.json")
 	mockClient := MockHttpClient{}
 	testRunner.httpClient = &mockClient
 	mockClient.StatusCode = 200
@@ -40,8 +42,10 @@ func TestBasicResponse(t *testing.T) {
 }
 
 func TestListResponse(t *testing.T) {
-	config := NewConfig("", "")
-	testRunner, _ := NewRunner(config, "listresponse.json")
+	testRunner, _ := NewRunner(Config{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+	}, "listresponse.json")
 	mockClient := MockHttpClient{}
 	testRunner.httpClient = &mockClient
 	mockClient.StatusCode = 200
