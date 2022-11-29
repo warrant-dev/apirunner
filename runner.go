@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-test/deep"
@@ -52,6 +54,20 @@ func NewRunner(config Config, testFileName string) (TestRunner, error) {
 		log.Printf("Unable to parse test data in '%s': %v\n", testFileName, err)
 		return TestRunner{}, err
 	}
+
+	// Validate test names (no duplicates, must be alphanumeric without spaces)
+	nameRegex := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	testNames := make(map[string]bool)
+	for _, testSpec := range suite.Tests {
+		if !nameRegex.MatchString(testSpec.Name) {
+			return TestRunner{}, fmt.Errorf("Invalid test case name: '%s', must be alphanumeric without spaces", testSpec.Name)
+		}
+		if _, ok := testNames[testSpec.Name]; ok {
+			return TestRunner{}, fmt.Errorf("Test case '%s' defined twice", testSpec.Name)
+		}
+		testNames[testSpec.Name] = true
+	}
+
 	return TestRunner{
 		suite,
 		config,
@@ -65,9 +81,10 @@ func (runner TestRunner) Execute() TestSuiteResults {
 	passed := make([]TestResult, 0)
 	failed := make([]TestResult, 0)
 	fmt.Printf("* '%s':\n", runner.suiteName)
+	extractedFields := make(map[string]string)
 	for _, test := range runner.suite.Tests {
 		start := time.Now()
-		result := runner.executeTest(test)
+		result := runner.executeTest(test, extractedFields)
 		duration := time.Since(start).Milliseconds()
 		if result.Passed {
 			passed = append(passed, result)
@@ -87,7 +104,7 @@ func (runner TestRunner) Execute() TestSuiteResults {
 	}
 }
 
-func (runner TestRunner) executeTest(test TestSpec) TestResult {
+func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]string) TestResult {
 	testErrors := make([]string, 0)
 
 	// Prep & make request
@@ -109,7 +126,22 @@ func (runner TestRunner) executeTest(test TestSpec) TestResult {
 	if test.Request.BaseUrl != "" {
 		baseUrl = test.Request.BaseUrl
 	}
-	req, err := http.NewRequest(test.Request.Method, baseUrl+test.Request.Url, requestBody)
+	requestUrlParts := strings.Split(test.Request.Url, "/")
+	var requestUrl string
+	for _, part := range requestUrlParts {
+		if part != "" {
+			newPart := part
+			if strings.HasPrefix(part, "{{") && strings.HasSuffix(part, "}}") {
+				key := strings.TrimSpace(part[2 : len(part)-2])
+				if replacementValue, ok := extractedFields[key]; ok {
+					newPart = replacementValue
+				}
+			}
+			requestUrl += "/" + newPart
+		}
+	}
+	fmt.Printf("Request url: '%s'\n", requestUrl)
+	req, err := http.NewRequest(test.Request.Method, baseUrl+requestUrl, requestBody)
 	if err != nil {
 		testErrors = append(testErrors, fmt.Sprintf("Unable to create request: %v", err))
 		return Failed(test.Name, testErrors)
@@ -158,11 +190,14 @@ func (runner TestRunner) executeTest(test TestSpec) TestResult {
 	}
 	switch r.(type) {
 	case map[string]interface{}:
-		response := r.(map[string]interface{})
-		runner.removeFieldsFromMap(response)
-		expected := expectedResponse.(map[string]interface{})
-		runner.removeFieldsFromMap(expected)
-		differences := deep.Equal(response, expected)
+		// response := r.(map[string]interface{})
+		// runner.removeIgnoredFields(response)
+		// expected := expectedResponse.(map[string]interface{})
+		// runner.removeIgnoredFields(expected)
+		// runner.extractFieldsFromResponse(response, extractedFields, test.Name)
+		// runner.fillTemplateValues(expected, extractedFields, test.Name)
+		// differences := deep.Equal(response, expected)
+		differences := runner.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
 		if len(differences) > 0 {
 			testErrors = append(testErrors, differences...)
 		}
@@ -173,14 +208,18 @@ func (runner TestRunner) executeTest(test TestSpec) TestResult {
 			testErrors = append(testErrors, "The number of array elements in response and expectedResponse don't match")
 		} else {
 			for i := range response {
-				respObj := response[i].(map[string]interface{})
-				runner.removeFieldsFromMap(respObj)
-				expObj := expected[i].(map[string]interface{})
-				runner.removeFieldsFromMap(expObj)
-				differences := deep.Equal(respObj, expObj)
+				// respObj := response[i].(map[string]interface{})
+				// runner.removeIgnoredFields(respObj)
+				// expObj := expected[i].(map[string]interface{})
+				// runner.removeIgnoredFields(expObj)
+				// runner.extractFieldsFromResponse(respObj, extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
+				// runner.fillTemplateValues(expObj, extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
+				// differences := deep.Equal(respObj, expObj)
+				differences := runner.compareObjects(response[i].(map[string]interface{}), expected[i].(map[string]interface{}), extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
 				if len(differences) > 0 {
 					testErrors = append(testErrors, differences...)
 				}
+
 			}
 		}
 	default:
@@ -195,8 +234,57 @@ func (runner TestRunner) executeTest(test TestSpec) TestResult {
 	return Passed(test.Name)
 }
 
-func (runner TestRunner) removeFieldsFromMap(m map[string]interface{}) {
+func (runner TestRunner) compareObjects(obj map[string]interface{}, expected map[string]interface{}, extractedFields map[string]string, testName string) []string {
+	//response := r.(map[string]interface{})
+	//runner.removeIgnoredFields(obj)
+	//expected := expectedResponse.(map[string]interface{})
+	//runner.removeIgnoredFields(expected)
 	for _, field := range runner.suite.IgnoredFields {
-		delete(m, field)
+		delete(obj, field)
+		delete(expected, field)
 	}
+	//runner.extractFieldsFromResponse(obj, extractedFields, testName)
+	for k, v := range obj {
+		extractedFields[testName+"."+k] = v.(string)
+	}
+	//runner.fillTemplateValues(expected, extractedFields, testName)
+	for k, v := range expected {
+		val := v.(string)
+		if strings.HasPrefix(val, "{{") && strings.HasSuffix(val, "}}") {
+			key := strings.TrimSpace(val[2 : len(val)-2])
+			if replacementValue, ok := extractedFields[key]; ok {
+				expected[k] = replacementValue
+			}
+			fmt.Printf("regex match: '%s'\n", key)
+		}
+	}
+	return deep.Equal(obj, expected)
+	// if len(differences) > 0 {
+	// 	testErrors = append(testErrors, differences...)
+	// }
 }
+
+// func (runner TestRunner) removeIgnoredFields(m map[string]interface{}) {
+// 	for _, field := range runner.suite.IgnoredFields {
+// 		delete(m, field)
+// 	}
+// }
+
+// func (runner TestRunner) extractFieldsFromResponse(m map[string]interface{}, extractedFieldsMap map[string]string, fieldPrefix string) {
+// 	for k, v := range m {
+// 		extractedFieldsMap[fieldPrefix+"."+k] = v.(string)
+// 	}
+// }
+
+// func (runner TestRunner) fillTemplateValues(m map[string]interface{}, extractedFieldsMap map[string]string, fieldPrefix string) {
+// 	for k, v := range m {
+// 		val := v.(string)
+// 		if strings.HasPrefix(val, "{{") && strings.HasSuffix(val, "}}") {
+// 			key := strings.TrimSpace(val[2 : len(val)-2])
+// 			if replacementValue, ok := extractedFieldsMap[key]; ok {
+// 				m[k] = replacementValue
+// 			}
+// 			fmt.Printf("regex match: '%s'\n", key)
+// 		}
+// 	}
+// }
