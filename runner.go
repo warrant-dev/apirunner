@@ -130,17 +130,9 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 	var requestUrl string
 	for _, part := range requestUrlParts {
 		if part != "" {
-			newPart := part
-			if strings.HasPrefix(part, "{{") && strings.HasSuffix(part, "}}") {
-				key := strings.TrimSpace(part[2 : len(part)-2])
-				if replacementValue, ok := extractedFields[key]; ok {
-					newPart = replacementValue
-				}
-			}
-			requestUrl += "/" + newPart
+			requestUrl += "/" + getTemplateValIfPresent(part, extractedFields)
 		}
 	}
-	fmt.Printf("Request url: '%s'\n", requestUrl)
 	req, err := http.NewRequest(test.Request.Method, baseUrl+requestUrl, requestBody)
 	if err != nil {
 		testErrors = append(testErrors, fmt.Sprintf("Unable to create request: %v", err))
@@ -190,13 +182,6 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 	}
 	switch r.(type) {
 	case map[string]interface{}:
-		// response := r.(map[string]interface{})
-		// runner.removeIgnoredFields(response)
-		// expected := expectedResponse.(map[string]interface{})
-		// runner.removeIgnoredFields(expected)
-		// runner.extractFieldsFromResponse(response, extractedFields, test.Name)
-		// runner.fillTemplateValues(expected, extractedFields, test.Name)
-		// differences := deep.Equal(response, expected)
 		differences := runner.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
 		if len(differences) > 0 {
 			testErrors = append(testErrors, differences...)
@@ -208,13 +193,6 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 			testErrors = append(testErrors, "The number of array elements in response and expectedResponse don't match")
 		} else {
 			for i := range response {
-				// respObj := response[i].(map[string]interface{})
-				// runner.removeIgnoredFields(respObj)
-				// expObj := expected[i].(map[string]interface{})
-				// runner.removeIgnoredFields(expObj)
-				// runner.extractFieldsFromResponse(respObj, extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
-				// runner.fillTemplateValues(expObj, extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
-				// differences := deep.Equal(respObj, expObj)
 				differences := runner.compareObjects(response[i].(map[string]interface{}), expected[i].(map[string]interface{}), extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
 				if len(differences) > 0 {
 					testErrors = append(testErrors, differences...)
@@ -234,57 +212,39 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 	return Passed(test.Name)
 }
 
-func (runner TestRunner) compareObjects(obj map[string]interface{}, expected map[string]interface{}, extractedFields map[string]string, testName string) []string {
-	//response := r.(map[string]interface{})
-	//runner.removeIgnoredFields(obj)
-	//expected := expectedResponse.(map[string]interface{})
-	//runner.removeIgnoredFields(expected)
+func (runner TestRunner) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) []string {
+	// Remove all ignored fields from obj and expectedObj so they aren't compared
 	for _, field := range runner.suite.IgnoredFields {
 		delete(obj, field)
-		delete(expected, field)
+		delete(expectedObj, field)
 	}
-	//runner.extractFieldsFromResponse(obj, extractedFields, testName)
+	// Track all new field values from response obj
 	for k, v := range obj {
-		extractedFields[testName+"."+k] = v.(string)
+		extractedFields[objPrefix+"."+k] = v.(string)
 	}
-	//runner.fillTemplateValues(expected, extractedFields, testName)
-	for k, v := range expected {
-		val := v.(string)
-		if strings.HasPrefix(val, "{{") && strings.HasSuffix(val, "}}") {
-			key := strings.TrimSpace(val[2 : len(val)-2])
-			if replacementValue, ok := extractedFields[key]; ok {
-				expected[k] = replacementValue
-			}
-			fmt.Printf("regex match: '%s'\n", key)
+	// Replace any template strings in expectedObj with values from extracted fields
+	for k, v := range expectedObj {
+		currentFieldVal := v.(string)
+		if isTemplateString(currentFieldVal) {
+			expectedObj[k] = getTemplateValIfPresent(currentFieldVal, extractedFields)
 		}
 	}
-	return deep.Equal(obj, expected)
-	// if len(differences) > 0 {
-	// 	testErrors = append(testErrors, differences...)
-	// }
+	// Deep compare the objects and return all errors
+	return deep.Equal(obj, expectedObj)
 }
 
-// func (runner TestRunner) removeIgnoredFields(m map[string]interface{}) {
-// 	for _, field := range runner.suite.IgnoredFields {
-// 		delete(m, field)
-// 	}
-// }
+// Returns true if 's' is a template string of the format '{{ value }}'
+func isTemplateString(s string) bool {
+	return strings.HasPrefix(s, "{{") && strings.HasSuffix(s, "}}")
+}
 
-// func (runner TestRunner) extractFieldsFromResponse(m map[string]interface{}, extractedFieldsMap map[string]string, fieldPrefix string) {
-// 	for k, v := range m {
-// 		extractedFieldsMap[fieldPrefix+"."+k] = v.(string)
-// 	}
-// }
-
-// func (runner TestRunner) fillTemplateValues(m map[string]interface{}, extractedFieldsMap map[string]string, fieldPrefix string) {
-// 	for k, v := range m {
-// 		val := v.(string)
-// 		if strings.HasPrefix(val, "{{") && strings.HasSuffix(val, "}}") {
-// 			key := strings.TrimSpace(val[2 : len(val)-2])
-// 			if replacementValue, ok := extractedFieldsMap[key]; ok {
-// 				m[k] = replacementValue
-// 			}
-// 			fmt.Printf("regex match: '%s'\n", key)
-// 		}
-// 	}
-// }
+// If 's' is a template string of the format "{{ value }}", resolve its value and return it. Else return original string.
+func getTemplateValIfPresent(s string, extractedFields map[string]string) string {
+	if isTemplateString(s) {
+		key := strings.TrimSpace(s[2 : len(s)-2])
+		if replacementValue, ok := extractedFields[key]; ok {
+			return replacementValue
+		}
+	}
+	return s
+}
