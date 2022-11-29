@@ -26,6 +26,11 @@ type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type Config struct {
+	BaseUrl       string
+	CustomHeaders map[string]string
+}
+
 type TestRunner struct {
 	suite      TestSuite
 	config     Config
@@ -138,7 +143,9 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 		testErrors = append(testErrors, fmt.Sprintf("Unable to create request: %v", err))
 		return Failed(test.Name, testErrors)
 	}
-	req.Header.Add("Authorization", runner.config.ApiKey)
+	for k, v := range runner.config.CustomHeaders {
+		req.Header.Add(k, v)
+	}
 	resp, err := runner.httpClient.Do(req)
 	if err != nil {
 		testErrors = append(testErrors, fmt.Sprintf("Error making request: %v", err))
@@ -220,13 +227,18 @@ func (runner TestRunner) compareObjects(obj map[string]interface{}, expectedObj 
 	}
 	// Track all new field values from response obj
 	for k, v := range obj {
-		extractedFields[objPrefix+"."+k] = v.(string)
+		switch str := v.(type) {
+		case string:
+			extractedFields[objPrefix+"."+k] = str
+		}
 	}
 	// Replace any template strings in expectedObj with values from extracted fields
 	for k, v := range expectedObj {
-		currentFieldVal := v.(string)
-		if isTemplateString(currentFieldVal) {
-			expectedObj[k] = getTemplateValIfPresent(currentFieldVal, extractedFields)
+		switch str := v.(type) {
+		case string:
+			if isTemplateString(str) {
+				expectedObj[k] = getTemplateValIfPresent(str, extractedFields)
+			}
 		}
 	}
 	// Deep compare the objects and return all errors
