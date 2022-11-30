@@ -214,6 +214,8 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 		}
 	}
 	if len(testErrors) > 0 {
+		// Append raw server response payload to errors for easier debugging
+		testErrors = append(testErrors, fmt.Sprintf("Full response payload from server: %s", string(body)))
 		return Failed(test.Name, testErrors)
 	}
 	return Passed(test.Name)
