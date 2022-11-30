@@ -1,0 +1,21 @@
+name: Build & Test API Runner
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go Env
+        uses: actions/setup-go@v3
+        with:
+          go-version: "^1.14.3"
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: Test
+        run: go test
