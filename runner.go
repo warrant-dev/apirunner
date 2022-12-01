@@ -27,37 +27,37 @@ type HttpClient interface {
 }
 
 type Config struct {
+	TestFileName  string
 	BaseUrl       string
 	CustomHeaders map[string]string
 }
 
-type TestRunner struct {
+type Runner struct {
 	suite      TestSuite
 	config     Config
-	suiteName  string
 	httpClient HttpClient
 }
 
-// Create a 'TestRunner' for a given test file
-func NewRunner(config Config, testFileName string) (TestRunner, error) {
-	jsonFile, err := os.Open(testFileName)
+// Create a new runner with given config
+func NewRunner(config Config) (Runner, error) {
+	jsonFile, err := os.Open(config.TestFileName)
 	if err != nil {
-		log.Printf("Error reading test file '%s': %v\n", testFileName, err)
-		return TestRunner{}, err
+		log.Printf("Error reading test file '%s': %v\n", config.TestFileName, err)
+		return Runner{}, err
 	}
 	defer jsonFile.Close()
 
 	byteValue, err := ioutil.ReadAll(jsonFile)
 	if err != nil {
-		log.Printf("Error reading test file '%s': %v\n", testFileName, err)
-		return TestRunner{}, err
+		log.Printf("Error reading test file '%s': %v\n", config.TestFileName, err)
+		return Runner{}, err
 	}
 
 	var suite TestSuite
 	err = json.Unmarshal(byteValue, &suite)
 	if err != nil {
-		log.Printf("Unable to parse test data in '%s': %v\n", testFileName, err)
-		return TestRunner{}, err
+		log.Printf("Unable to parse test data in '%s': %v\n", config.TestFileName, err)
+		return Runner{}, err
 	}
 
 	// Validate test names (no duplicates, must be alphanumeric without spaces)
@@ -65,27 +65,26 @@ func NewRunner(config Config, testFileName string) (TestRunner, error) {
 	testNames := make(map[string]bool)
 	for _, testSpec := range suite.Tests {
 		if !nameRegex.MatchString(testSpec.Name) {
-			return TestRunner{}, fmt.Errorf("Invalid test case name: '%s', must be alphanumeric without spaces", testSpec.Name)
+			return Runner{}, fmt.Errorf("Invalid test case name: '%s', must be alphanumeric without spaces", testSpec.Name)
 		}
 		if _, ok := testNames[testSpec.Name]; ok {
-			return TestRunner{}, fmt.Errorf("Test case '%s' defined twice", testSpec.Name)
+			return Runner{}, fmt.Errorf("Test case '%s' defined twice", testSpec.Name)
 		}
 		testNames[testSpec.Name] = true
 	}
 
-	return TestRunner{
+	return Runner{
 		suite,
 		config,
-		testFileName,
 		http.DefaultClient,
 	}, nil
 }
 
 // Execute all tests and return results
-func (runner TestRunner) Execute() TestSuiteResults {
+func (runner Runner) Execute() TestSuiteResults {
 	passed := make([]TestResult, 0)
 	failed := make([]TestResult, 0)
-	fmt.Printf("* '%s':\n", runner.suiteName)
+	fmt.Printf("* '%s':\n", runner.config.TestFileName)
 	extractedFields := make(map[string]string)
 	for _, test := range runner.suite.Tests {
 		start := time.Now()
@@ -109,7 +108,7 @@ func (runner TestRunner) Execute() TestSuiteResults {
 	}
 }
 
-func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]string) TestResult {
+func (runner Runner) executeTest(test TestSpec, extractedFields map[string]string) TestResult {
 	testErrors := make([]string, 0)
 
 	// Prep & make request
@@ -221,7 +220,7 @@ func (runner TestRunner) executeTest(test TestSpec, extractedFields map[string]s
 	return Passed(test.Name)
 }
 
-func (runner TestRunner) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) []string {
+func (runner Runner) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) []string {
 	// Remove all ignored fields from obj and expectedObj so they aren't compared
 	for _, field := range runner.suite.IgnoredFields {
 		delete(obj, field)
