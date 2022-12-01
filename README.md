@@ -77,9 +77,10 @@ import (
 // Execute all tests in 'mytestfile.json' and print results
 func main() {
     runner, err := apirunner.NewRunner(apirunner.Config{
+        TestFileName:  "mytestfile.json",
         BaseUrl:       "http://localhost:8000",
         CustomHeaders: nil,
-    }, "mytestfile.json")
+    })
     if err != nil {
         panic(err)
     }
@@ -122,7 +123,7 @@ PRs welcome! Clone and develop locally:
 ```shell
 git clone git@github.com:warrant-dev/apirunner.git
 cd apirunner
-go build
+go test
 ```
 
 ## About Warrant

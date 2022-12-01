@@ -21,9 +21,10 @@ func (c *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 
 func TestBasicResponse(t *testing.T) {
 	testRunner, _ := NewRunner(Config{
+		TestFileName:  "basicresponse.json",
 		BaseUrl:       "",
 		CustomHeaders: nil,
-	}, "basicresponse.json")
+	})
 	mockClient := MockHttpClient{}
 	testRunner.httpClient = &mockClient
 	mockClient.StatusCode = 200
@@ -36,16 +37,17 @@ func TestBasicResponse(t *testing.T) {
 	}
 	if len(results.Failed) > 0 {
 		for _, test := range results.Failed {
-			t.Errorf("Failed test result: [%s]\n", test.TabbedResult())
+			t.Errorf("Failed test result: [%s]\n", test.Serialize())
 		}
 	}
 }
 
 func TestListResponse(t *testing.T) {
 	testRunner, _ := NewRunner(Config{
+		TestFileName:  "listresponse.json",
 		BaseUrl:       "",
 		CustomHeaders: nil,
-	}, "listresponse.json")
+	})
 	mockClient := MockHttpClient{}
 	testRunner.httpClient = &mockClient
 	mockClient.StatusCode = 200
@@ -57,7 +59,7 @@ func TestListResponse(t *testing.T) {
 	}
 	if len(results.Failed) > 0 {
 		for _, test := range results.Failed {
-			t.Errorf("Failed test result: [%s]\n", test.TabbedResult())
+			t.Errorf("Failed test result: [%s]\n", test.Serialize())
 		}
 	}
 }

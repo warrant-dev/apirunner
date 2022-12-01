@@ -61,7 +61,8 @@ func Passed(name string) TestResult {
 	}
 }
 
-func (result TestResult) TabbedResult() []string {
+// Serialize test result (pass or fail) as string (including errors)
+func (result TestResult) Serialize() []string {
 	resultString := make([]string, 0)
 	if result.Passed {
 		resultString = append(resultString, fmt.Sprintf("%s:\tPASSED\n", result.Name))
