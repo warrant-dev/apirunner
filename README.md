@@ -1,5 +1,7 @@
 # API Runner
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/warrant-dev/apirunner)](https://goreportcard.com/report/github.com/warrant-dev/apirunner)
+
 A lightweight test runner for testing http APIs. Define test cases as json and execute them against any server (local or over the network).
 
 Written in Go. Built by the [Warrant](https://warrant.dev/) team.
