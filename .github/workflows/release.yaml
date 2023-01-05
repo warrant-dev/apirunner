@@ -1,29 +1,26 @@
-name: Build & Test API Runner
+name: Release API Runner
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Go Env
         uses: actions/setup-go@v3
         with:
-          go-version: "^1.14.3"
+          go-version: "^1.19.3"
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 2
-      - name: Go test
-        run: go test
-      - name: Build apirunner binary
-        run: make -C cmd/apirunner build
-      - name: GoReleaser Check
+      - name: Release with GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           distribution: goreleaser
           version: latest
-          args: check
+          args: release --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
