@@ -3,7 +3,8 @@ before:
     # - go mod tidy
     # - go generate ./...
 builds:
-  - env:
+  - main: ./cmd/apirunner/
+    env:
       - CGO_ENABLED=0
     binary: apirunner
     goos:
