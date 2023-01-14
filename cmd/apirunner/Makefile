@@ -15,4 +15,4 @@ dev: clean
 .PHONY: build
 build: clean
 	$(GOCMD) get
-	$(GOENV) $(GOBUILD) $(NAME) main.go
+	$(GOENV) $(GOBUILD) $(NAME) -ldflags="-s -w" main.go
