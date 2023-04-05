@@ -59,3 +59,23 @@ func TestListResponse(t *testing.T) {
 		}
 	}
 }
+
+func TestIgnoredFields(t *testing.T) {
+	mockClient := MockHttpClient{}
+	mockClient.StatusCode = 200
+	mockClient.Body = "[{\"id\": 1, \"name\": \"name1\", \"nested\": {\"hello\": 1, \"createdAt\": \"2023-04-05T12:38:54.038Z\"}, \"createdAt\": \"2023-04-05T12:38:54.038Z\"},{\"id\": 2,\"name\": \"name2\", \"nested\": {\"hello\": 0, \"createdAt\": \"2023-04-05T12:38:54.036226Z\"}, \"createdAt\": \"2023-04-05T12:38:54.036226Z\"}]"
+	results, _ := ExecuteSuite(RunConfig{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+		HttpClient:    &mockClient,
+	}, "ignoredfieldsresponse.json", true)
+
+	if len(results.Passed) == 0 {
+		t.Errorf("All tests should have passed.\n")
+	}
+	if len(results.Failed) > 0 {
+		for _, test := range results.Failed {
+			t.Errorf("Failed test result: [%s]\n", test.Result())
+		}
+	}
+}
