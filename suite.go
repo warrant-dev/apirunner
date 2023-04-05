@@ -317,7 +317,12 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 		}
 	}
 
-	// Deep compare the objects and return any errors on non-ignored fields
+	// Deep compare the objects and return any errors,
+	// ignoring any errors that match an ignored field.
+	//
+	// NOTE: This approach is brittle as it assumes the
+	// github.com/go-test/deep package's Equal method
+	// continues to return errors in the expected format.
 	diffs := make([]string, 0)
 	allDiffs := deep.Equal(obj, expectedObj)
 	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
