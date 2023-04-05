@@ -292,11 +292,6 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 }
 
 func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) []string {
-	// Remove all ignored fields from obj and expectedObj so they aren't compared
-	for _, field := range suite.spec.IgnoredFields {
-		delete(obj, field)
-		delete(expectedObj, field)
-	}
 	// Track all new field values from response obj
 	for k, v := range obj {
 		switch str := v.(type) {
@@ -313,8 +308,20 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 			}
 		}
 	}
-	// Deep compare the objects and return all errors
-	return deep.Equal(obj, expectedObj)
+
+	// Deep compare the objects and return any errors on non-ignored fields
+	diffs := make([]string, 0)
+	allDiffs := deep.Equal(obj, expectedObj)
+	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
+	for _, diff := range allDiffs {
+		field, _, _ := strings.Cut(diff, ":")
+		matched, _ := regexp.MatchString(ignoredFieldsMatchExpr, field)
+		if !matched {
+			diffs = append(diffs, diff)
+		}
+	}
+
+	return diffs
 }
 
 // Returns true if 's' is a template string of the format '{{ value }}'
