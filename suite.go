@@ -329,13 +329,13 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	for _, diff := range allDiffs {
 		field, _, found := strings.Cut(diff, ":")
 		if !found {
-			return nil, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
+			return diffs, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
 		}
 
 		// ignore errors that match an ignored field
 		matched, err := regexp.MatchString(ignoredFieldsMatchExpr, field)
 		if err != nil {
-			return nil, err
+			return diffs, err
 		}
 
 		if !matched {
