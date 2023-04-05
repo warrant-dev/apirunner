@@ -1,0 +1,33 @@
+{
+    "ignoredFields": [
+        "createdAt"
+    ],
+    "tests": [
+        {
+            "name": "ignoredFieldsResponse",
+            "request": {
+                "method": "GET",
+                "url": "/users"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": [
+                    {
+                        "id": 1,
+                        "name": "name1",
+                        "nested": {
+                            "hello": 1
+                        }
+                    },
+                    {
+                        "id": 2,
+                        "name": "name2",
+                        "nested": {
+                            "hello": 0
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

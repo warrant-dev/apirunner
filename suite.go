@@ -259,7 +259,11 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	}
 	switch r.(type) {
 	case map[string]interface{}:
-		differences := suite.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
+		differences, err := suite.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
+		if err != nil {
+			testErrors = append(testErrors, fmt.Sprintf("Error comparing actual and expected responses: %v", err))
+		}
+
 		if len(differences) > 0 {
 			testErrors = append(testErrors, differences...)
 		}
@@ -270,7 +274,11 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 			testErrors = append(testErrors, "The number of array elements in response and expectedResponse don't match")
 		} else {
 			for i := range response {
-				differences := suite.compareObjects(response[i].(map[string]interface{}), expected[i].(map[string]interface{}), extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
+				differences, err := suite.compareObjects(response[i].(map[string]interface{}), expected[i].(map[string]interface{}), extractedFields, fmt.Sprintf("%s[%d]", test.Name, i))
+				if err != nil {
+					testErrors = append(testErrors, fmt.Sprintf("Error comparing actual and expected responses: %v", err))
+				}
+
 				if len(differences) > 0 {
 					testErrors = append(testErrors, differences...)
 				}
@@ -291,12 +299,7 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	return Passed(test.Name, time.Since(start))
 }
 
-func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) []string {
-	// Remove all ignored fields from obj and expectedObj so they aren't compared
-	for _, field := range suite.spec.IgnoredFields {
-		delete(obj, field)
-		delete(expectedObj, field)
-	}
+func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) ([]string, error) {
 	// Track all new field values from response obj
 	for k, v := range obj {
 		switch str := v.(type) {
@@ -313,8 +316,34 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 			}
 		}
 	}
-	// Deep compare the objects and return all errors
-	return deep.Equal(obj, expectedObj)
+
+	// Deep compare the objects and return any errors,
+	// ignoring any errors that match an ignored field.
+	//
+	// NOTE: This approach is brittle as it assumes the
+	// github.com/go-test/deep package's Equal method
+	// continues to return errors in the expected format.
+	diffs := make([]string, 0)
+	allDiffs := deep.Equal(obj, expectedObj)
+	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
+	for _, diff := range allDiffs {
+		field, _, found := strings.Cut(diff, ":")
+		if !found {
+			return diffs, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
+		}
+
+		// ignore errors that match an ignored field
+		matched, err := regexp.MatchString(ignoredFieldsMatchExpr, field)
+		if err != nil {
+			return diffs, err
+		}
+
+		if !matched {
+			diffs = append(diffs, diff)
+		}
+	}
+
+	return diffs, nil
 }
 
 // Returns true if 's' is a template string of the format '{{ value }}'
