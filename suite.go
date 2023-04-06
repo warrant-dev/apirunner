@@ -201,13 +201,16 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	if test.Request.BaseUrl != "" {
 		baseUrl = test.Request.BaseUrl
 	}
-	requestUrlParts := strings.Split(test.Request.Url, "/")
-	var requestUrl string
-	for _, part := range requestUrlParts {
-		if part != "" {
-			requestUrl += "/" + getTemplateValIfPresent(part, extractedFields)
-		}
+
+	// Replace any template variables in test's request url with the appropriate value
+	requestUrl := test.Request.Url
+	templateVariableRegex := regexp.MustCompile(`{{\s*[a-zA-Z0-9\.]+\s*}}`)
+	templateVariables := templateVariableRegex.FindAll([]byte(requestUrl), -1)
+	for _, templateVariable := range templateVariables {
+		templateVal := getTemplateValIfPresent(string(templateVariable), extractedFields)
+		requestUrl = strings.Replace(requestUrl, string(templateVariable), templateVal, -1)
 	}
+
 	req, err := http.NewRequest(test.Request.Method, baseUrl+requestUrl, requestBody)
 	if err != nil {
 		testErrors = append(testErrors, fmt.Sprintf("Unable to create request: %v", err))
