@@ -48,7 +48,7 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 	if fileInfo.IsDir() {
 		dir, err := os.ReadDir(testDir)
 		if err != nil {
-			errors.Wrap(err, fmt.Sprintf("Error reading dir: %s", testDir))
+			return false, errors.Wrap(err, fmt.Sprintf("Error reading dir: %s", testDir))
 		}
 		for _, f := range dir {
 			if strings.HasSuffix(f.Name(), ".json") {
