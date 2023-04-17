@@ -204,7 +204,7 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 
 	// Replace any template variables in test's request url with the appropriate value
 	requestUrl := test.Request.Url
-	templateVariableRegex := regexp.MustCompile(`{{\s*[a-zA-Z0-9\.]+\s*}}`)
+	templateVariableRegex := regexp.MustCompile(`{{\s*[^\s]+\s*}}`)
 	templateVariables := templateVariableRegex.FindAll([]byte(requestUrl), -1)
 	for _, templateVariable := range templateVariables {
 		templateVal := getTemplateValIfPresent(string(templateVariable), extractedFields)
