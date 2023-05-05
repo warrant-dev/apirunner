@@ -81,10 +81,12 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 	total := 0
 	numPassed := 0
 	numFailed := 0
+	numSkipped := 0
 	for _, result := range results {
 		total += result.TotalTests
 		numFailed += len(result.Failed)
 		numPassed += len(result.Passed)
+		numSkipped += len(result.Skipped)
 		if len(result.Failed) == 0 {
 			continue
 		}
@@ -93,7 +95,7 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 			fmt.Print(failed.Result())
 		}
 	}
-	fmt.Printf("\nTotal: %d\nPassed: %d\nFailed: %d\nDuration: %s\n", total, numPassed, numFailed, execDuration)
+	fmt.Printf("\nTotal: %d\nPassed: %d\nFailed: %d\nSkipped: %d\nDuration: %s\n", total, numPassed, numFailed, numSkipped, execDuration)
 	if numFailed > 0 {
 		return false, nil
 	}
