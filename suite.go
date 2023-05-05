@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	PassedString = "\033[1;32mPASSED (%s)\033[0m"
-	FailedString = "\033[1;31mFAILED (%s)\033[0m"
-	ErrorString  = "\033[1;31m%s\033[0m"
+	SkippedString = "\033[1;33mSKIPPED (%s)\033[0m"
+	PassedString  = "\033[1;32mPASSED (%s)\033[0m"
+	FailedString  = "\033[1;31mFAILED (%s)\033[0m"
+	ErrorString   = "\033[1;31m%s\033[0m"
 )
 
 // Mock-able HttpClient interface
@@ -35,6 +36,7 @@ type TestSuite struct {
 
 // Spec defining the tests in a suite
 type TestSuiteSpec struct {
+	Skip          bool       `json:"skip"`
 	IgnoredFields []string   `json:"ignoredFields"`
 	BaseUrl       string     `json:"baseUrl"`
 	Tests         []TestSpec `json:"tests"`
@@ -43,6 +45,7 @@ type TestSuiteSpec struct {
 // Spec defining a single test case
 type TestSpec struct {
 	Name             string           `json:"name"`
+	Skip             bool             `json:"skip"`
 	Request          Request          `json:"request"`
 	ExpectedResponse ExpectedResponse `json:"expectedResponse"`
 }
@@ -65,6 +68,7 @@ type ExpectedResponse struct {
 type TestSuiteResult struct {
 	Passed       []TestResult
 	Failed       []TestResult
+	Skipped      []TestResult
 	TestFilename string
 	TotalTests   int
 }
@@ -72,6 +76,7 @@ type TestSuiteResult struct {
 // Result for an executed test case
 type TestResult struct {
 	Passed   bool
+	Skipped  bool
 	Name     string
 	Errors   []string
 	Duration time.Duration
@@ -80,6 +85,7 @@ type TestResult struct {
 func Failed(name string, errors []string, duration time.Duration) TestResult {
 	return TestResult{
 		Passed:   false,
+		Skipped:  false,
 		Name:     name,
 		Errors:   errors,
 		Duration: duration,
@@ -89,23 +95,39 @@ func Failed(name string, errors []string, duration time.Duration) TestResult {
 func Passed(name string, duration time.Duration) TestResult {
 	return TestResult{
 		Passed:   true,
+		Skipped:  false,
 		Name:     name,
 		Errors:   nil,
 		Duration: duration,
 	}
 }
 
+func Skipped(name string) TestResult {
+	return TestResult{
+		Passed:   false,
+		Skipped:  true,
+		Name:     name,
+		Errors:   nil,
+		Duration: 0,
+	}
+}
+
 func (result TestResult) ResultNoDetail() string {
 	if result.Passed {
 		return fmt.Sprintf("\t%s %s\n", result.Name, fmt.Sprintf(PassedString, result.Duration))
-	} else {
-		return fmt.Sprintf("\t%s %s\n", result.Name, fmt.Sprintf(FailedString, result.Duration))
 	}
+
+	if result.Skipped {
+		return fmt.Sprintf("\t%s %s\n", result.Name, fmt.Sprintf(SkippedString, result.Duration))
+	}
+
+	// Failed
+	return fmt.Sprintf("\t%s %s\n", result.Name, fmt.Sprintf(FailedString, result.Duration))
 }
 
 func (result TestResult) Result() string {
 	resultString := result.ResultNoDetail()
-	if !result.Passed {
+	if !result.Passed && !result.Skipped {
 		for _, err := range result.Errors {
 			resultString = resultString + fmt.Sprintf("\t\t%s\n", fmt.Sprintf(ErrorString, err))
 		}
@@ -152,15 +174,25 @@ func ExecuteSuite(runConfig RunConfig, testFilename string, logFailureDetails bo
 	}
 	passed := make([]TestResult, 0)
 	failed := make([]TestResult, 0)
+	skipped := make([]TestResult, 0)
 	totalTests := 0
 	fmt.Printf("\n* '%s':\n", testSuite.fileName)
 	// Memoized attrs map
 	extractedFields := make(map[string]string)
 	for _, test := range testSuite.spec.Tests {
 		totalTests++
-		result := testSuite.executeTest(test, extractedFields)
+
+		var result TestResult
+		if testSuite.spec.Skip || test.Skip {
+			result = Skipped(test.Name)
+		} else {
+			result = testSuite.executeTest(test, extractedFields)
+		}
+
 		if result.Passed {
 			passed = append(passed, result)
+		} else if result.Skipped {
+			skipped = append(skipped, result)
 		} else {
 			failed = append(failed, result)
 		}
@@ -174,6 +206,7 @@ func ExecuteSuite(runConfig RunConfig, testFilename string, logFailureDetails bo
 		TotalTests:   totalTests,
 		Passed:       passed,
 		Failed:       failed,
+		Skipped:      skipped,
 		TestFilename: testSuite.fileName,
 	}, nil
 }
