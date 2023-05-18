@@ -1,0 +1,33 @@
+{
+    "ignoredFields": [
+        "createdAt"
+    ],
+    "tests": [
+        {
+            "name": "test1",
+            "request": {
+                "method": "GET",
+                "url": "/users"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": {
+                    "userId": "{{ test1.userId }}"
+                }
+            }
+        },
+        {
+            "name": "test2",
+            "request": {
+                "method": "GET",
+                "url": "/users/{{ test1.userIdWrongVar }}"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": {
+                    "userId": "{{ test1.userId }}"
+                }
+            }
+        }
+    ]
+}

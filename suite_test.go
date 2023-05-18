@@ -79,3 +79,23 @@ func TestIgnoredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestTemplateVars(t *testing.T) {
+	mockClient := MockHttpClient{}
+	mockClient.StatusCode = 200
+	mockClient.Body = "{\"userId\": \"user_1\"}"
+	results, _ := ExecuteSuite(RunConfig{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+		HttpClient:    &mockClient,
+	}, "templatevars.json", true)
+
+	if len(results.Passed) == 0 {
+		t.Errorf("All tests should have passed.\n")
+	}
+	if len(results.Failed) > 0 {
+		for _, test := range results.Failed {
+			t.Errorf("Failed test result: [%s]\n", test.Result())
+		}
+	}
+}

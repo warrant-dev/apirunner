@@ -236,12 +236,10 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	}
 
 	// Replace any template variables in test's request url with the appropriate value
-	requestUrl := test.Request.Url
-	templateVariableRegex := regexp.MustCompile(`{{\s*[^\s]+\s*}}`)
-	templateVariables := templateVariableRegex.FindAll([]byte(requestUrl), -1)
-	for _, templateVariable := range templateVariables {
-		templateVal := getTemplateValIfPresent(string(templateVariable), extractedFields)
-		requestUrl = strings.Replace(requestUrl, string(templateVariable), templateVal, -1)
+	requestUrl, err := templateReplace(test.Request.Url, extractedFields)
+	if err != nil {
+		testErrors = append(testErrors, err.Error())
+		return Failed(test.Name, testErrors, time.Since(start))
 	}
 
 	req, err := http.NewRequest(test.Request.Method, baseUrl+requestUrl, requestBody)
@@ -343,13 +341,17 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 			extractedFields[objPrefix+"."+k] = str
 		}
 	}
+	diffs := make([]string, 0)
 	// Replace any template strings in expectedObj with values from extracted fields
 	for k, v := range expectedObj {
 		switch str := v.(type) {
 		case string:
-			if isTemplateString(str) {
-				expectedObj[k] = getTemplateValIfPresent(str, extractedFields)
+			s, err := templateReplace(str, extractedFields)
+			if err != nil {
+				diffs = append(diffs, err.Error())
+				continue
 			}
+			expectedObj[k] = s
 		}
 	}
 
@@ -359,10 +361,9 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	// NOTE: This approach is brittle as it assumes the
 	// github.com/go-test/deep package's Equal method
 	// continues to return errors in the expected format.
-	diffs := make([]string, 0)
-	allDiffs := deep.Equal(obj, expectedObj)
+	deepLibDiffs := deep.Equal(obj, expectedObj)
 	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
-	for _, diff := range allDiffs {
+	for _, diff := range deepLibDiffs {
 		field, _, found := strings.Cut(diff, ":")
 		if !found {
 			return diffs, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
@@ -382,18 +383,25 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	return diffs, nil
 }
 
-// Returns true if 's' is a template string of the format '{{ value }}'
-func isTemplateString(s string) bool {
-	return strings.HasPrefix(s, "{{") && strings.HasSuffix(s, "}}")
-}
+// Replaces all instances of the template format "{{ value }}" in 's' with values from 'extractedFields'. Returns err if a value is not found in extractedFields.
+func templateReplace(s string, extractedFields map[string]string) (string, error) {
+	templateVariableRegex := regexp.MustCompile(`{{\s*[^\s]+\s*}}`)
+	matches := templateVariableRegex.FindAll([]byte(s), -1)
 
-// If 's' is a template string of the format "{{ value }}", resolve its value and return it. Else return original string.
-func getTemplateValIfPresent(s string, extractedFields map[string]string) string {
-	if isTemplateString(s) {
-		key := strings.TrimSpace(s[2 : len(s)-2])
-		if replacementValue, ok := extractedFields[key]; ok {
-			return replacementValue
-		}
+	// No template matches, return original string
+	if matches == nil {
+		return s, nil
 	}
-	return s
+
+	// Replace each match with extracted value. Err if no value found for any match.
+	for _, varMatch := range matches {
+		// Remove '{{ }}' to get varName
+		varName := strings.Trim(string(varMatch), "{ }")
+		varValue, ok := extractedFields[varName]
+		if !ok {
+			return s, fmt.Errorf("missing template value for var: '%s'", varName)
+		}
+		s = strings.Replace(s, string(varMatch), varValue, 1)
+	}
+	return s, nil
 }
