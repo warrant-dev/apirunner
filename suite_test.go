@@ -90,12 +90,11 @@ func TestTemplateVars(t *testing.T) {
 		HttpClient:    &mockClient,
 	}, "templatevars.json", true)
 
-	if len(results.Passed) == 0 {
-		t.Errorf("All tests should have passed.\n")
+	if len(results.Passed) != 1 && len(results.Failed) != 1 && len(results.Skipped) != 0 {
+		t.Errorf("Expected 1 Passed, 1 Failed, 0 Skipped.")
 	}
-	if len(results.Failed) > 0 {
-		for _, test := range results.Failed {
-			t.Errorf("Failed test result: [%s]\n", test.Result())
-		}
+
+	if !strings.Contains(results.Failed[0].Result(), "missing template value for var: 'test1.userIdWrongVar'") {
+		t.Errorf("Expected failure result to contain string: 'missing template value for var: 'test1.userIdWrongVar''")
 	}
 }
