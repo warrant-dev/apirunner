@@ -364,7 +364,7 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	deepLibDiffs := deep.Equal(obj, expectedObj)
 	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
 	for _, diff := range deepLibDiffs {
-		field, _, found := strings.Cut(diff, ":")
+		field, _, found := strings.Cut(diff, ": ")
 		if !found {
 			return diffs, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
 		}
