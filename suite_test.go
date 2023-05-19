@@ -79,3 +79,22 @@ func TestIgnoredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestTemplateVars(t *testing.T) {
+	mockClient := MockHttpClient{}
+	mockClient.StatusCode = 200
+	mockClient.Body = "{\"userId\": \"user_1\"}"
+	results, _ := ExecuteSuite(RunConfig{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+		HttpClient:    &mockClient,
+	}, "templatevars.json", true)
+
+	if len(results.Passed) != 1 && len(results.Failed) != 1 && len(results.Skipped) != 0 {
+		t.Errorf("Expected 1 Passed, 1 Failed, 0 Skipped.")
+	}
+
+	if !strings.Contains(results.Failed[0].Result(), "missing template value for var: 'test1.userIdWrongVar'") {
+		t.Errorf("Expected failure result to contain string: 'missing template value for var: 'test1.userIdWrongVar''")
+	}
+}
