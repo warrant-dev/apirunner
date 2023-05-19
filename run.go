@@ -46,7 +46,6 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 			return err
 		}
 
-		// Check if the file is a regular file and has a .json extension
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
 			fmt.Printf("Found '%s'\n", path)
 			testFiles = append(testFiles, path)
