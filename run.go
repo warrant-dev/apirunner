@@ -40,29 +40,22 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 	config.HttpClient = http.DefaultClient
 
 	// Find test files
-	fileInfo, err := os.Stat(testDir)
-	if err != nil {
-		return false, errors.Wrap(err, fmt.Sprintf("error reading file/dir: %s", testDir))
-	}
 	testFiles := make([]string, 0)
-	if fileInfo.IsDir() {
-		dir, err := os.ReadDir(testDir)
+	err = filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return false, errors.Wrap(err, fmt.Sprintf("Error reading dir: %s", testDir))
+			return err
 		}
-		for _, f := range dir {
-			if strings.HasSuffix(f.Name(), ".json") {
-				testFile := filepath.Join(testDir, f.Name())
-				fmt.Printf("Found '%s'\n", testFile)
-				testFiles = append(testFiles, testFile)
-			}
+
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
+			fmt.Printf("Found '%s'\n", path)
+			testFiles = append(testFiles, path)
 		}
-	} else {
-		if !strings.HasSuffix(fileInfo.Name(), ".json") {
-			return false, errors.New(fmt.Sprintf("Invalid test file name: %s", fileInfo.Name()))
-		}
-		fmt.Printf("Found '%s'\n", fileInfo.Name())
-		testFiles = append(testFiles, testDir)
+
+		return nil
+	})
+
+	if err != nil {
+		return false, errors.Wrap(err, fmt.Sprintf("Error reading dir: %s", testDir))
 	}
 
 	// Execute tests
