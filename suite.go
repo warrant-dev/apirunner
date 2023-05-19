@@ -362,20 +362,15 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	// github.com/go-test/deep package's Equal method
 	// continues to return errors in the expected format.
 	deepLibDiffs := deep.Equal(obj, expectedObj)
-	ignoredFieldsMatchExpr := fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]|\[`))
+	ignoredFieldsMatchRegExp := regexp.MustCompile(fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]$|\[`)))
 	for _, diff := range deepLibDiffs {
 		field, _, found := strings.Cut(diff, ": ")
 		if !found {
-			return diffs, fmt.Errorf("invalid diff %s returned by deep.Equal", diff)
+			return diffs, fmt.Errorf("unexpectedly formatted diff %s returned by deep.Equal", diff)
 		}
 
-		// ignore errors that match an ignored field
-		matched, err := regexp.MatchString(ignoredFieldsMatchExpr, field)
-		if err != nil {
-			return diffs, err
-		}
-
-		if !matched {
+		// Only register errors that don't match an ignored field
+		if !ignoredFieldsMatchRegExp.Match([]byte(field)) {
 			diffs = append(diffs, diff)
 		}
 	}
