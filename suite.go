@@ -66,16 +66,18 @@ type TestSpec struct {
 
 // Request information for a single test case
 type Request struct {
-	Method  string      `json:"method"`
-	BaseUrl string      `json:"baseUrl"`
-	Url     string      `json:"url"`
-	Body    interface{} `json:"body"`
+	Method  string            `json:"method"`
+	BaseUrl string            `json:"baseUrl"`
+	Url     string            `json:"url"`
+	Body    interface{}       `json:"body"`
+	Headers map[string]string `json:"headers"`
 }
 
 // Expected test case response
 type ExpectedResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Body       interface{} `json:"body"`
+	StatusCode int               `json:"statusCode"`
+	Body       interface{}       `json:"body"`
+	Headers    map[string]string `json:"headers"`
 }
 
 // Results for an executed TestSuite
@@ -264,6 +266,14 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	for k, v := range suite.config.CustomHeaders {
 		req.Header.Add(k, v)
 	}
+	for k, v := range test.Request.Headers {
+		headerVal, err := templateReplace(v, extractedFields)
+		if err != nil {
+			testErrors = append(testErrors, err.Error())
+			return Failed(test.Name, testErrors, time.Since(start))
+		}
+		req.Header.Add(k, headerVal)
+	}
 	resp, err := suite.config.HttpClient.Do(req)
 	if err != nil {
 		testErrors = append(testErrors, fmt.Sprintf("Error making request: %v", err))
@@ -274,6 +284,28 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	statusCode := resp.StatusCode
 	if statusCode != test.ExpectedResponse.StatusCode {
 		testErrors = append(testErrors, fmt.Sprintf("Expected http %d but got http %d", test.ExpectedResponse.StatusCode, statusCode))
+	}
+
+	// Memoize response headers
+	for headerName, headerValues := range resp.Header {
+		headerValConcat := strings.Join(headerValues, ",")
+		extractedFields[test.Name+".header."+headerName] = strings.TrimSpace(headerValConcat)
+	}
+	// Compare all expected response headers
+	for expHeaderName, expHeaderValTemplate := range test.ExpectedResponse.Headers {
+		if actualVals, ok := resp.Header[http.CanonicalHeaderKey(expHeaderName)]; ok {
+			expHeaderVal, err := templateReplace(expHeaderValTemplate, extractedFields)
+			if err != nil {
+				testErrors = append(testErrors, fmt.Sprintf("Invalid expected response header template %s", expHeaderValTemplate))
+				continue
+			}
+			actualVal := strings.Join(actualVals, ",")
+			if actualVal != expHeaderVal {
+				testErrors = append(testErrors, fmt.Sprintf("Expected response header '%s: %s' but got '%s: %s'", expHeaderName, expHeaderVal, expHeaderName, actualVal))
+			}
+		} else {
+			testErrors = append(testErrors, fmt.Sprintf("Expected response header '%s: %s' not present", expHeaderName, expHeaderValTemplate))
+		}
 	}
 
 	// Read response payload

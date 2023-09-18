@@ -24,12 +24,14 @@ import (
 type MockHttpClient struct {
 	StatusCode int
 	Body       string
+	Header     map[string][]string
 }
 
 func (c *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: c.StatusCode,
 		Body:       io.NopCloser(strings.NewReader(c.Body)),
+		Header:     c.Header,
 	}, nil
 }
 
@@ -58,6 +60,9 @@ func TestListResponse(t *testing.T) {
 	mockClient := MockHttpClient{}
 	mockClient.StatusCode = 200
 	mockClient.Body = "[{\"id\": 1, \"name\": \"name1\"},{\"id\": 2,\"name\": \"name2\"}]"
+	respHeaders := make(map[string][]string)
+	respHeaders["Warrant-Token"] = []string{"asdf"}
+	mockClient.Header = respHeaders
 	results, _ := ExecuteSuite(RunConfig{
 		BaseUrl:       "",
 		CustomHeaders: nil,
