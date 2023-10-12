@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,7 +195,7 @@ func ExecuteSuite(runConfig RunConfig, testFilename string, logFailureDetails bo
 	totalTests := 0
 	fmt.Printf("\n* '%s':\n", testSuite.fileName)
 	// Memoized attrs map
-	extractedFields := make(map[string]string)
+	extractedFields := make(map[string]interface{})
 	for _, test := range testSuite.spec.Tests {
 		totalTests++
 
@@ -227,7 +228,7 @@ func ExecuteSuite(runConfig RunConfig, testFilename string, logFailureDetails bo
 	}, nil
 }
 
-func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]string) TestResult {
+func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]interface{}) TestResult {
 	start := time.Now()
 	testErrors := make([]string, 0)
 
@@ -388,14 +389,13 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 	return Passed(test.Name, time.Since(start))
 }
 
-func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]string, objPrefix string) ([]string, error) {
+func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]interface{}, objPrefix string) ([]string, error) {
 	// Track all new field values from response obj
-	for k, v := range obj {
-		switch str := v.(type) {
-		case string:
-			extractedFields[objPrefix+"."+k] = str
-		}
+	flattenedObj := flatten(obj, objPrefix, 0)
+	for k, v := range flattenedObj {
+		extractedFields[k] = v
 	}
+
 	diffs := make([]string, 0)
 	// Replace any template strings in expectedObj with values from extracted fields
 	for k, v := range expectedObj {
@@ -438,7 +438,7 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 }
 
 // Replaces all instances of the template format "{{ value }}" in 's' with values from 'extractedFields'. Returns err if a value is not found in extractedFields.
-func templateReplace(s string, extractedFields map[string]string) (string, error) {
+func templateReplace(s string, extractedFields map[string]interface{}) (string, error) {
 	templateVariableRegex := regexp.MustCompile(`{{\s*[^\s]+\s*}}`)
 	matches := templateVariableRegex.FindAll([]byte(s), -1)
 
@@ -455,7 +455,73 @@ func templateReplace(s string, extractedFields map[string]string) (string, error
 		if !ok {
 			return s, fmt.Errorf("missing template value for var: '%s'", varName)
 		}
-		s = strings.Replace(s, string(varMatch), varValue, 1)
+		s = strings.Replace(s, string(varMatch), fmt.Sprint(varValue), 1)
 	}
 	return s, nil
+}
+
+func flatten(m interface{}, prefix string, level int) map[string]interface{} {
+	res := make(map[string]interface{})
+	switch obj := m.(type) {
+	case []interface{}:
+		for i, val := range obj {
+			switch child := val.(type) {
+			case map[string]interface{}:
+				childM := flatten(child, prefix, level+1)
+				for k, v := range childM {
+					flattenedKey := fmt.Sprintf("[%d].%s", i, k)
+					if level == 0 {
+						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+					}
+					res[flattenedKey] = v
+				}
+			case []interface{}:
+				childM := flatten(child, prefix, level+1)
+				for k, v := range childM {
+					flattenedKey := fmt.Sprintf("[%d]%s", i, k)
+					if level == 0 {
+						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+					}
+					res[flattenedKey] = v
+				}
+			default:
+				flattenedKey := strconv.Itoa(i)
+				if level == 0 {
+					flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+				}
+				res[flattenedKey] = val
+			}
+		}
+	case map[string]interface{}:
+		for key, val := range obj {
+			switch child := val.(type) {
+			case map[string]interface{}:
+				childM := flatten(child, prefix, level+1)
+				for k, v := range childM {
+					flattenedKey := key + "." + k
+					if level == 0 {
+						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+					}
+					res[flattenedKey] = v
+				}
+			case []interface{}:
+				childM := flatten(child, prefix, level+1)
+				for k, v := range childM {
+					flattenedKey := key + k
+					if level == 0 {
+						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+					}
+					res[flattenedKey] = v
+				}
+			default:
+				flattenedKey := key
+				if level == 0 {
+					flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
+				}
+				res[flattenedKey] = val
+			}
+		}
+	}
+
+	return res
 }
