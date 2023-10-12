@@ -251,6 +251,11 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 		}
 
 		requestBody = bytes.NewBuffer([]byte(processedRequestBody))
+
+		// Memoize request body
+		for k, v := range flatten(test.Request.Body, "", 0) {
+			extractedFields[test.Name+".request.body."+k] = v
+		}
 	}
 
 	baseUrl := suite.config.BaseUrl
@@ -470,7 +475,7 @@ func flatten(m interface{}, prefix string, level int) map[string]interface{} {
 				childM := flatten(child, prefix, level+1)
 				for k, v := range childM {
 					flattenedKey := fmt.Sprintf("[%d].%s", i, k)
-					if level == 0 {
+					if level == 0 && prefix != "" {
 						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 					}
 					res[flattenedKey] = v
@@ -479,14 +484,14 @@ func flatten(m interface{}, prefix string, level int) map[string]interface{} {
 				childM := flatten(child, prefix, level+1)
 				for k, v := range childM {
 					flattenedKey := fmt.Sprintf("[%d]%s", i, k)
-					if level == 0 {
+					if level == 0 && prefix != "" {
 						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 					}
 					res[flattenedKey] = v
 				}
 			default:
 				flattenedKey := strconv.Itoa(i)
-				if level == 0 {
+				if level == 0 && prefix != "" {
 					flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 				}
 				res[flattenedKey] = val
@@ -499,7 +504,7 @@ func flatten(m interface{}, prefix string, level int) map[string]interface{} {
 				childM := flatten(child, prefix, level+1)
 				for k, v := range childM {
 					flattenedKey := key + "." + k
-					if level == 0 {
+					if level == 0 && prefix != "" {
 						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 					}
 					res[flattenedKey] = v
@@ -508,14 +513,14 @@ func flatten(m interface{}, prefix string, level int) map[string]interface{} {
 				childM := flatten(child, prefix, level+1)
 				for k, v := range childM {
 					flattenedKey := key + k
-					if level == 0 {
+					if level == 0 && prefix != "" {
 						flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 					}
 					res[flattenedKey] = v
 				}
 			default:
 				flattenedKey := key
-				if level == 0 {
+				if level == 0 && prefix != "" {
 					flattenedKey = fmt.Sprintf("%s.%s", prefix, flattenedKey)
 				}
 				res[flattenedKey] = val
