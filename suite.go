@@ -241,8 +241,17 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]str
 			testErrors = append(testErrors, fmt.Sprintf("Invalid request body: %v", err))
 			return Failed(test.Name, testErrors, time.Since(start))
 		}
-		requestBody = bytes.NewBuffer(reqBodyBytes)
+
+		// Replace any template variables in test's request body with the appropriate value
+		processedRequestBody, err := templateReplace(string(reqBodyBytes), extractedFields)
+		if err != nil {
+			testErrors = append(testErrors, err.Error())
+			return Failed(test.Name, testErrors, time.Since(start))
+		}
+
+		requestBody = bytes.NewBuffer([]byte(processedRequestBody))
 	}
+
 	baseUrl := suite.config.BaseUrl
 	if suite.spec.BaseUrl != "" {
 		baseUrl = suite.spec.BaseUrl
