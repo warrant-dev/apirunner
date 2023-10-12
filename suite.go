@@ -403,16 +403,19 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 
 	diffs := make([]string, 0)
 	// Replace any template strings in expectedObj with values from extracted fields
-	for k, v := range expectedObj {
-		switch str := v.(type) {
-		case string:
-			s, err := templateReplace(str, extractedFields)
-			if err != nil {
-				diffs = append(diffs, err.Error())
-				continue
-			}
-			expectedObj[k] = s
-		}
+	expectedObjBytes, err := json.Marshal(expectedObj)
+	if err != nil {
+		return diffs, errors.Wrap(err, "error marshaling expectedObj")
+	}
+	expectedObjStr, err := templateReplace(string(expectedObjBytes), extractedFields)
+	if err != nil {
+		return diffs, errors.Wrap(err, "error replacing template vars in expectedObj")
+	}
+
+	var processedExpectedObj map[string]interface{}
+	err = json.Unmarshal([]byte(expectedObjStr), &processedExpectedObj)
+	if err != nil {
+		return diffs, errors.Wrap(err, "error unmarshaling expectedObj")
 	}
 
 	// Deep compare the objects and return any errors,
@@ -421,7 +424,7 @@ func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj ma
 	// NOTE: This approach is brittle as it assumes the
 	// github.com/go-test/deep package's Equal method
 	// continues to return errors in the expected format.
-	deepLibDiffs := deep.Equal(obj, expectedObj)
+	deepLibDiffs := deep.Equal(obj, processedExpectedObj)
 	ignoredFieldsMatchRegExp, err := regexp.Compile(fmt.Sprintf(`\[%s\]$`, strings.Join(suite.spec.IgnoredFields, `\]$|\[`)))
 	if err != nil {
 		return diffs, errors.Wrap(err, "invalid ignored fields regexp")
