@@ -151,7 +151,7 @@ func (result TestResult) Result() string {
 	return resultString
 }
 
-// Execute a test suite and print + return results
+// ExecuteSuite executes a test suite and prints + returns the results
 func ExecuteSuite(runConfig RunConfig, testFilename string, logFailureDetails bool) (TestSuiteResult, error) {
 	// Read test suite spec
 	jsonFile, err := os.Open(testFilename)

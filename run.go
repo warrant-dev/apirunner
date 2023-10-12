@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -33,8 +34,8 @@ type RunConfig struct {
 	HttpClient    HttpClient
 }
 
-// Execute all test files in 'testDir'. Returns true if all tests pass, false otherwise (including on err)
-func Run(runConfigFilename string, testDir string) (bool, error) {
+// Run executes all test files in 'testDir'. Returns true if all tests pass, false otherwise (including on err)
+func Run(runConfigFilename string, testDir string, testFilenameMatchRegex *regexp.Regexp) (bool, error) {
 	// Load and validate RunConfig
 	configFile, err := os.Open(runConfigFilename)
 	if err != nil {
@@ -60,7 +61,7 @@ func Run(runConfigFilename string, testDir string) (bool, error) {
 			return err
 		}
 
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") && testFilenameMatchRegex.MatchString(info.Name()) {
 			fmt.Printf("Found '%s'\n", path)
 			testFiles = append(testFiles, path)
 		}
