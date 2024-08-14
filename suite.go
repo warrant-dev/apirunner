@@ -362,8 +362,13 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 		expectedString, ok := expectedResponse.(string)
 		if !ok {
 			testErrors = append(testErrors, fmt.Sprintf("Expected a JSON object, but got a non-JSON response: %s", string(body)))
-		} else if string(body) != expectedString {
-			testErrors = append(testErrors, fmt.Sprintf("Expected response payload %s but got %s", expectedString, string(body)))
+		} else {
+			processedExpectedBody, err := templateReplace(expectedString, extractedFields)
+			if err != nil {
+				testErrors = append(testErrors, fmt.Sprintf("Error comparing actual and expected responses: %v", err))
+			} else if string(body) != processedExpectedBody {
+				testErrors = append(testErrors, fmt.Sprintf("Expected response payload %s but got %s", expectedString, string(body)))
+			}
 		}
 	case isMap(r):
 		differences, err := suite.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
