@@ -28,6 +28,20 @@
                     "userId": "{{ test1.userId }}"
                 }
             }
+        },
+        {
+            "name": "test3",
+            "request": {
+                "method": "POST",
+                "url": "/users",
+                "body": "{{ test1.userId }}"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": {
+                    "userId": "{{ test1.userId }}"
+                }
+            }
         }
     ]
 }

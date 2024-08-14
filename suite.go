@@ -237,14 +237,22 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 	if test.Request.Body == nil {
 		requestBody = bytes.NewBuffer([]byte("{}"))
 	} else {
-		reqBodyBytes, err := json.Marshal(test.Request.Body)
-		if err != nil {
-			testErrors = append(testErrors, fmt.Sprintf("Invalid request body: %v", err))
-			return Failed(test.Name, testErrors, time.Since(start))
+		var stringBody string
+		// Marshalling a string directly will escape the string, so we need to handle it separately
+		if str, ok := test.Request.Body.(string); ok {
+			stringBody = str
+		} else {
+			reqBodyBytes, err := json.Marshal(test.Request.Body)
+
+			if err != nil {
+				testErrors = append(testErrors, fmt.Sprintf("Invalid request body: %v", err))
+				return Failed(test.Name, testErrors, time.Since(start))
+			}
+			stringBody = string(reqBodyBytes)
 		}
 
 		// Replace any template variables in test's request body with the appropriate value
-		processedRequestBody, err := templateReplace(string(reqBodyBytes), extractedFields)
+		processedRequestBody, err := templateReplace(stringBody, extractedFields)
 		if err != nil {
 			testErrors = append(testErrors, err.Error())
 			return Failed(test.Name, testErrors, time.Since(start))
@@ -348,12 +356,16 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 	// Otherwise, deep compare response payload to expected response payload
 	var r interface{}
 	err = json.Unmarshal(body, &r)
-	if err != nil {
-		testErrors = append(testErrors, fmt.Sprintf("Error parsing json response from server: %v", err))
-		return Failed(test.Name, testErrors, time.Since(start))
-	}
-	switch r.(type) {
-	case map[string]interface{}:
+	switch {
+	case err != nil:
+		// If JSON unmarshalling fails, compare the response as a plain text string
+		expectedString, ok := expectedResponse.(string)
+		if !ok {
+			testErrors = append(testErrors, fmt.Sprintf("Expected a JSON object, but got a non-JSON response: %s", string(body)))
+		} else if string(body) != expectedString {
+			testErrors = append(testErrors, fmt.Sprintf("Expected response payload %s but got %s", expectedString, string(body)))
+		}
+	case isMap(r):
 		differences, err := suite.compareObjects(r.(map[string]interface{}), expectedResponse.(map[string]interface{}), extractedFields, test.Name)
 		if err != nil {
 			testErrors = append(testErrors, fmt.Sprintf("Error comparing actual and expected responses: %v", err))
@@ -362,7 +374,7 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 		if len(differences) > 0 {
 			testErrors = append(testErrors, differences...)
 		}
-	case []interface{}:
+	case isSlice(r):
 		response := r.([]interface{})
 		expected := expectedResponse.([]interface{})
 		if len(response) != len(expected) {
@@ -392,6 +404,16 @@ func (suite TestSuite) executeTest(test TestSpec, extractedFields map[string]int
 		return Failed(test.Name, testErrors, time.Since(start))
 	}
 	return Passed(test.Name, time.Since(start))
+}
+
+func isMap(v interface{}) bool {
+	_, ok := v.(map[string]interface{})
+	return ok
+}
+
+func isSlice(v interface{}) bool {
+	_, ok := v.([]interface{})
+	return ok
 }
 
 func (suite TestSuite) compareObjects(obj map[string]interface{}, expectedObj map[string]interface{}, extractedFields map[string]interface{}, objPrefix string) ([]string, error) {

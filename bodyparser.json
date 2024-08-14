@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "bodyStringParser",
+      "request": {
+        "method": "POST",
+        "url": "/string",
+        "body": "Hello, World!"
+      },
+      "expectedResponse": {
+        "statusCode": 200,
+        "body": "Hello, World!"
+      }
+    },
+    {
+      "name": "bodyJSONParser",
+      "request": {
+        "method": "POST",
+        "url": "/json",
+        "body": {
+          "hello": "world"
+        }
+      },
+      "expectedResponse": {
+        "statusCode": 200,
+        "body": {
+          "hello": "world"
+        }
+      }
+    }
+  ]
+}
