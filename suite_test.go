@@ -117,3 +117,34 @@ func TestTemplateVars(t *testing.T) {
 		t.Errorf("Expected failure result to contain string: 'missing template value for var: 'test1.userIdWrongVar''")
 	}
 }
+
+type EchoRequestHttpClient struct {
+	StatusCode int
+}
+
+func (c *EchoRequestHttpClient) Do(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: c.StatusCode,
+		Body:       req.Body,
+		Header:     req.Header,
+	}, nil
+}
+
+func TestParsesBodyCorrectly(t *testing.T) {
+	mockClient := EchoRequestHttpClient{}
+	mockClient.StatusCode = 200
+	results, _ := ExecuteSuite(RunConfig{
+		BaseUrl:       "",
+		CustomHeaders: nil,
+		HttpClient:    &mockClient,
+	}, "bodyparser.json", true)
+
+	if len(results.Passed) == 0 {
+		t.Errorf("All tests should have passed.\n")
+	}
+	if len(results.Failed) > 0 {
+		for _, test := range results.Failed {
+			t.Errorf("Failed test result: [%s]\n", test.Result())
+		}
+	}
+}

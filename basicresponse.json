@@ -13,6 +13,21 @@
                     "name": "name"
                 }
             }
+        },
+        {
+            "name": "basicStringBody",
+            "request": {
+                "method": "POST",
+                "url": "/user",
+                "body": "name"
+            },
+            "expectedResponse": {
+                "statusCode": 200,
+                "body": {
+                    "id": 1,
+                    "name": "name"
+                }
+            }
         }
     ]
 }
